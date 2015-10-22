@@ -4,15 +4,15 @@ from io import BytesIO
 from gzip import GzipFile
 from tarfile import TarInfo
 import xml.etree.ElementTree as et
-import opensubs.utils as utils
-from opensubs.srt2xml import SubtitleConverter
+import utils as utils
+from srt2xml import SubtitleConverter
 
 exportFile = "/projects/researchers/researchers01/plison/data/export_all.txt"
 infoFile = "/projects/researchers/researchers01/plison/data/subtitles_all.txt"
 omdbFile = "/projects/researchers/researchers01/plison/data/omdb.txt"
 ratingFile = "/projects/researchers/researchers01/plison/data/sub_attributes.csv"
-sub2srt = "/cluster/home/plison/mt/opensubs/sub2srt.pl"
-ssa2srt = "/cluster/home/plison/mt/opensubs/ssa2srt.pl"
+sub2srt = os.path.dirname(os.path.abspath(__file__)) + "/sub2srt.pl"
+ssa2srt = os.path.dirname(os.path.abspath(__file__)) + "/ssa2srt.pl"
 
 class Subtitle:
     
