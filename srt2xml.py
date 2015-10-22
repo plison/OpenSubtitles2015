@@ -8,8 +8,8 @@ simple tokenization and sentence splitting procedure.
 
 import sys, os, io,json,re,gzip,tarfile,time,collections
 import xml.etree.cElementTree as et
-import opus.utils as utils
-from opus.utils import Tokeniser,SpellChecker
+import opensubs.utils as utils
+from opensubs.utils import Tokeniser,SpellChecker
     
 # Regex to detect the subtitle indices at the start of each block    
 numberRegex = re.compile("(\d+)\r*\n")

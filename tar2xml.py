@@ -4,25 +4,26 @@ from io import BytesIO
 from gzip import GzipFile
 from tarfile import TarInfo
 import xml.etree.ElementTree as et
-import opus.utils as utils
-from opus.srt2xml import SubtitleConverter
+import opensubs.utils as utils
+from opensubs.srt2xml import SubtitleConverter
 
 exportFile = "/projects/researchers/researchers01/plison/data/export_all.txt"
 infoFile = "/projects/researchers/researchers01/plison/data/subtitles_all.txt"
 omdbFile = "/projects/researchers/researchers01/plison/data/omdb.txt"
 ratingFile = "/projects/researchers/researchers01/plison/data/sub_attributes.csv"
-sub2srt = "/cluster/home/plison/mt/opus/sub2srt.pl"
-ssa2srt = "/cluster/home/plison/mt/opus/ssa2srt.pl"
+sub2srt = "/cluster/home/plison/mt/opensubs/sub2srt.pl"
+ssa2srt = "/cluster/home/plison/mt/opensubs/ssa2srt.pl"
 
 class Subtitle:
     
-    def __init__(self, subid, imdb, langcode, format, numcds, date):
+    def __init__(self, subid, imdb, langcode, format, numcds, date, year):
         self.subid = subid
         self.imdb = imdb
         self.langcode = langcode
         self.subformat = format
         self.fps = None
         self.files = [None]*numcds
+        self.year = year if year else "unknown"
         self.meta = {"source":{},"subtitle":{"date":date},"id":subid}
         
             
@@ -127,12 +128,13 @@ def extractSubtitles():
         split = line.split('\t')
         if len(split) == 16:
             subid = split[0]
+            year = split[2]
             langcode = split[4]
             imdb = split[6]
             subformat = split[7]
             sumcds = int(split[8])
             date = split[5].split(" ")[0]
-            sub = Subtitle(subid, imdb, langcode, subformat, sumcds,date)
+            sub = Subtitle(subid, imdb, langcode, subformat, sumcds,date, year)
             if split[10]:
                 sub.fps = float(split[10])
             if langcode not in subtitles:
@@ -304,7 +306,8 @@ def convertArchive(archiveFile, outputFile, langcode=None, encoding=None,
         if not srtFiles:
             sys.stderr.write(sub.subid + " not in archive\n")
             continue
-        sys.stderr.write("Processing %s (ID: %s)\n"%(srtFiles, sub.subid))
+        path = sub.year + "/" + sub.imdb + "/" + sub.subid + ".xml"
+        sys.stderr.write("Processing %s (output file: %s)\n"%(srtFiles, path))
         output = BytesIO()
         routput = BytesIO() if rawOutput else None
 
@@ -316,9 +319,9 @@ def convertArchive(archiveFile, outputFile, langcode=None, encoding=None,
         try:
             converter = SubtitleConverter(input,output,routput,language,sub.meta)
             converter.doConversion()
-            _addToArchive(output,sub.imdb+"/"+sub.subid+".xml",outputFile)
+            _addToArchive(output,path,outputFile)
             if rawOutput:
-                _addToArchive(routput,sub.imdb+"/"+sub.subid+".xml",rawOutputFile)
+                _addToArchive(routput,path,rawOutputFile)
         except KeyboardInterrupt:
             break
         except:
