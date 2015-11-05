@@ -4,8 +4,8 @@ from io import BytesIO
 from gzip import GzipFile
 from tarfile import TarInfo
 import xml.etree.ElementTree as et
-import utils as utils
-from srt2xml import SubtitleConverter
+import utils
+from srt2xml import SubtitleConverter, BilingualConverter
 
 exportFile = "/projects/researchers/researchers01/plison/data/export_all.txt"
 infoFile = "/projects/researchers/researchers01/plison/data/subtitles_all.txt"
@@ -38,11 +38,32 @@ class Subtitle:
                 fd.seek(offset,0)
                 content = BytesIO(fd.read(size))
                 input = GzipFile(fileid,'rb',fileobj=content)
-                if self.subformat == "ssa":
-                    input = self.convertFromSsa(input)
-                elif self.subformat != "srt":
-                    input = self.convertFromSub(input)
-                input.contentsize=size
+                try:
+                    firstline = input.readline().decode("utf-8","ignore")
+                    if self.subformat == "ssa":
+                        input = self.convertFromSsa(input)
+                    elif self.subformat != "srt":
+                        input = self.convertFromSub(input)
+                    elif re.match("\{\d+\}\{\d+\}", firstline):
+                        input = self.convertFromSub(input)
+                    input.seek(0)
+                except:
+                    sys.stderr.write("Conversion problem: %s\n"%sys.exc_info()[1])
+                    continue
+                
+                # special case for Georgian (Python does not include the georgian-ps encoding)
+                if self.langcode=="ka":
+                    inputtext = input.read()
+                    import chardet
+                    if "utf-8" not in chardet.detect(inputtext)["encoding"].lower():
+                        sys.stderr.write("Converting Georgian subtitle to UTF-8\n")
+                        p = subprocess.Popen("iconv -f georgian-ps -t utf-8", shell=True,
+                                        stdin=subprocess.PIPE,stdout=subprocess.PIPE)
+                        out, err = p.communicate(inputtext)
+                        input = BytesIO(out)
+                    else:
+                        input = BytesIO(inputtext)
+                        
                 inputs.append(input) 
         return inputs
     
@@ -98,25 +119,6 @@ class Subtitle:
         
         return BytesIO(content)
 
-
-
-
-def getSubtitles(langcode, nbPartitions, part):
-            
-    subtitles = extractSubtitles()
-    subtitles_list = {}
-    for lang in subtitles:
-        subtitles_list[lang] =  list(subtitles[lang].values())
-    langcode2 = utils.getLanguage(langcode).codes[1]
-    nbSubtitles = len(subtitles_list[langcode2])
-    partlength = int(nbSubtitles/nbPartitions)
-    partstart = (part-1)*partlength
-    partend = part*partlength if part < nbPartitions else nbSubtitles
-
-    sublist = subtitles_list[langcode2][partstart:partend]
-    
-    subtitles_subset = {s.subid:s for s in sublist}
-    return subtitles_subset
 
 
 def extractSubtitles():
@@ -242,46 +244,19 @@ def _addToArchive(output, filename, archive):
     xmlInfo.mtime = time.time()
     archive.addfile(xmlInfo,output)    
     output.close()
-    
-    
-def splitBilingual(archive):
-    sys.stderr.write("Splitting " + archive + " into the 2 languages\n")
-    archive = tarfile.open(archive, 'r')
-    archive1 = tarfile.open(archive.name.replace(".tar", "1.tar"), 'w')
-    archive2 = tarfile.open(archive.name.replace(".tar", "2.tar"), 'w')
-    for member in archive.getmembers():
-        f = archive.extractfile(member)
-        sys.stderr.write("Splitting file %s\n"%f.name)
-        fs = [BytesIO(),BytesIO()]
-        sids = [1,1]
-        current = fs
-        for l in f:
-            l = l.decode("utf-8")
-            match = re.search("<s\sid\=\"\d+\"\slang\=\"(\d)\">",l)
-            if match:
-                langnum = 0 if match.group(1)=="1" else 1
-                l = re.sub("id\=\"\d+\"", "id=\"%s\""%sids[langnum],l)
-                current = [fs[langnum]]
-                sids[langnum] += 1
-            for c in current:
-               c.write(l.encode("utf-8")) 
-            if re.search("<\/s>",l):
-                current = fs
-        _addToArchive(fs[0], member.name, archive1)
-        _addToArchive(fs[1], member.name, archive2)
-    archive1.close()
-    archive2.close()
-    
-                
-def convertArchive(archiveFile, outputFile, langcode=None, encoding=None, 
-                   alwaysSplit=False, rawOutput=None, nbPartitions=1, part=1):
-    
-    if not langcode:
-        langcode = re.search(r'([^/]+)\.tar',archiveFile).group(1)
-    language = utils.getLanguage(langcode)  
+ 
+ 
+ 
+def selectSubtitles(archiveFile, langcode, nbPartitions, part):   
 
-    sys.stderr.write("Reading the subtitle table...\n")
-    subset = getSubtitles(langcode,nbPartitions,part)
+    sys.stderr.write("Reading the subtitle table...\n")    
+    subtitles = extractSubtitles()
+    subtitles_list = list(subtitles[langcode].values())
+    partlength = int(len(subtitles_list)/nbPartitions)
+    partstart = (part-1)*partlength
+    partend = part*partlength if part < nbPartitions else len(subtitles_list)
+    subset = {s.subid:s for s in subtitles_list[partstart:partend]}
+    
     sys.stderr.write("Finished reading the subtitle table.\n")
     sys.stderr.write("Reading the export and archive file...\n")
     addFilePointers(subset, archiveFile)
@@ -293,50 +268,154 @@ def convertArchive(archiveFile, outputFile, langcode=None, encoding=None,
     sys.stderr.write("Finished reading the databases.\n")
 
     nbSubtitles = sum([len([f for f in s.files if f]) for s in subset.values()])
-    sys.stderr.write("--> Processing %i subtitles (language: %s)\n" 
-                     %(nbSubtitles,language.name))
-         
-    outputFile = tarfile.open(outputFile, mode='w')
-    if rawOutput:
-        rawOutputFile = tarfile.open(rawOutput, mode='w')
-        
-    for sub in subset.values():        
-            
-        srtFiles = ", ".join([s[0]+"."+sub.subformat for s in sub.files if s])
-        if not srtFiles:
-            sys.stderr.write(sub.subid + " not in archive\n")
-            continue
-        path = sub.year + "/" + sub.imdb + "/" + sub.subid + ".xml"
-        sys.stderr.write("Processing %s (output file: %s)\n"%(srtFiles, path))
-        output = BytesIO()
-        routput = BytesIO() if rawOutput else None
+    sys.stderr.write("--> Processing %i subtitles (code: %s)\n"%(nbSubtitles,langcode))
+    return subset
+ 
+ 
+  
+def addSubtitle(sub, tokTarFile, rawTarFile, language, encoding, alwaysSplit):
 
-        try:
-            input = sub.getFileObjects()                
-        except:
-            sys.stderr.write("Conversion problem: %s\n"%sys.exc_info()[1])
-            continue       
-        try:
-            converter = SubtitleConverter(input,output,routput,language,sub.meta)
-            converter.doConversion()
-            _addToArchive(output,path,outputFile)
-            if rawOutput:
-                _addToArchive(routput,path,rawOutputFile)
+    srtFiles = ", ".join([s[0]+"."+sub.subformat for s in sub.files if s])
+    if not srtFiles:
+        sys.stderr.write(sub.subid + " not in archive\n")
+        return
+    path = sub.year + "/" + sub.imdb + "/" + sub.subid + ".xml"
+    sys.stderr.write("Processing %s (output file: %s)\n"%(srtFiles, path))
+
+    input = sub.getFileObjects()  
+    if not input:
+        return              
+    output = BytesIO()
+    routput = BytesIO() if rawTarFile else None
+
+    try:
+        converter = SubtitleConverter(input,output,routput,language,sub.meta, 
+                                      encoding, alwaysSplit)  
+        converter.doConversion()
+        _addToArchive(output,path,tokTarFile)
+        if rawTarFile:
+            _addToArchive(routput,path,rawTarFile)
+    except KeyboardInterrupt:
+        raise
+    except:
+        sys.stderr.write("Processing error: %s\n"%sys.exc_info()[1])    
+              
+    for i in input:
+        i.close()
+    output.close()
+    if rawTarFile:
+        routput.close()
+
+
+def addBilingualSubtitle(sub, tokTarFile,tokTarFile2, rawTarFile, rawTarFile2,
+                        language, language2, encoding, alwaysSplit):
+
+    srtFiles = ", ".join([s[0]+"."+sub.subformat for s in sub.files if s])
+    if not srtFiles:
+        sys.stderr.write(sub.subid + " not in archive\n")
+        return
+    path = sub.year + "/" + sub.imdb + "/" + sub.subid + ".xml"
+    sys.stderr.write("Processing %s (output files: %s)\n"%(srtFiles, path))
+
+    input = sub.getFileObjects()  
+    if not input:
+        return              
+    output = BytesIO()
+    output2 = BytesIO()
+    routput = BytesIO() if rawTarFile else None
+    routput2 = BytesIO() if rawTarFile else None
+
+    try:
+        converter = BilingualConverter(input,output,output2,routput,routput2,
+                                       language,language2, sub.meta, encoding, alwaysSplit)  
+        converter.doConversion()
+
+        if (language.getProb(converter.text) < language2.getProb(converter.text) and
+            language2.getProb(converter.text2) < language.getProb(converter.text2)):
+            sys.stderr.write("Erroneous language ordering, re-processing subtitle...\n")
+            addBilingualSubtitle(sub, tokTarFile2, tokTarFile, rawTarFile2, rawTarFile,
+                                 language2, language, encoding, alwaysSplit)
+        else:                 
+            _addToArchive(output,path,tokTarFile)
+            _addToArchive(output2,path,tokTarFile2)
+            if rawTarFile:
+                _addToArchive(routput,path,rawTarFile)
+                _addToArchive(routput2,path,rawTarFile2)
+    except KeyboardInterrupt:
+        raise
+    except:
+        sys.stderr.write("Processing error: %s\n"%sys.exc_info()[1])    
+              
+    for i in input:
+        i.close()
+    output.close()
+    output2.close()
+    if rawTarFile:
+        routput.close()
+        routput2.close()
+
+        
+ 
+def convertArchive(archiveFile, tokTarFile, langcode=None, encoding=None, 
+                   alwaysSplit=False, rawTarFile=None, nbPartitions=1, part=1):
+    
+    if not langcode:
+        langcode = re.search(r'([^/]+)\.tar',archiveFile).group(1) 
+    if langcode == "zhe":
+        return convertBilingualArchive(archiveFile,tokTarFile,langcode,encoding,
+                                       alwaysSplit,rawTarFile,nbPartitions,part)
+               
+    langcode = utils.getLanguage(langcode).codes[1]
+
+    subset = selectSubtitles(archiveFile, langcode, nbPartitions, part)
+    
+    language = utils.getLanguage(langcode)  
+    
+    tokTarFile = tarfile.open(tokTarFile, mode='w')
+    if rawTarFile:
+        rawTarFile = tarfile.open(rawTarFile, mode='w')
+            
+    for sub in subset.values():             
+        try:  
+            addSubtitle(sub, tokTarFile, rawTarFile, language, encoding, alwaysSplit)          
         except KeyboardInterrupt:
             break
-        except:
-            sys.stderr.write("Processing error: %s\n"%sys.exc_info()[1])
-        for i in input:
-            i.close()
-        output.close()
-        if rawOutput:
-            routput.close()
 
-    outputFile.close() 
-    if rawOutput:
-        rawOutputFile.close() 
-       
- 
+    tokTarFile.close() 
+    if rawTarFile:
+        rawTarFile.close() 
+
+
+def convertBilingualArchive(archiveFile, tokTarFile, langcode=None, encoding=None, 
+                   alwaysSplit=False, rawTarFile=None, nbPartitions=1, part=1):
+           
+
+    language = utils.getLanguage("zht") 
+    language2 = utils.getLanguage("eng")         
+    subset = selectSubtitles(archiveFile, "ze", nbPartitions, part)
+    
+    incrementPath = lambda p : re.sub("(\w+)(?=\.|$|\-raw\.)", "\g<1>2", p, 1)
+    tokTarFile = tarfile.open(tokTarFile, mode='w')
+    tokTarFile2 = tarfile.open(incrementPath(tokTarFile.name), mode='w')
+    if rawTarFile:
+        rawTarFile = tarfile.open(rawTarFile, mode='w')
+        rawTarFile2 = tarfile.open(incrementPath(rawTarFile.name), mode='w')
+    else:
+        rawTarFile2 = None
+        
+    for sub in subset.values():             
+        try:  
+            addBilingualSubtitle(sub,tokTarFile,tokTarFile2,rawTarFile,rawTarFile2, 
+                                 language, language2, encoding, alwaysSplit)                     
+        except KeyboardInterrupt:
+            break
+
+    tokTarFile.close() 
+    tokTarFile2.close() 
+    if rawTarFile:
+        rawTarFile.close() 
+        rawTarFile2.close() 
+        
 
 if __name__ == '__main__':
     
@@ -345,10 +424,10 @@ if __name__ == '__main__':
     cmdOptions = argparse.ArgumentParser(prog="tar2xml")
     cmdOptions.add_argument("archiveFile", 
                                help="Path to the archive file in tar format")
-    cmdOptions.add_argument("outputFile", 
+    cmdOptions.add_argument("tokTarFile", 
                           help="""Path to the archive output file. If omitted, 
                           writes to the standard output""")
-    cmdOptions.add_argument("-r", dest="rawOutput", 
+    cmdOptions.add_argument("-r", dest="rawTarFile", 
                           help="raw output file (without tokenization)")
     cmdOptions.add_argument("-l", dest="langcode", help="language code (ISO-639-3)")
     cmdOptions.add_argument("-e",dest="encoding",  

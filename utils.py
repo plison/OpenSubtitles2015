@@ -12,7 +12,7 @@ languages = {'alb': 'sq', 'scc': 'sr', 'ita': 'it', 'per': 'fa', 'gl': {'codes':
 'iso-8859-1']}, 'lt': {'codes': ['lit', 'lt'], 'name': 'Lithuanian', 'scripts':
 ['latin'], 'encodings': ['utf-8', 'windows-1257', 'iso-8859-4']}, 'nor': 'no',
 'th': {'codes': ['tha', 'th'], 'name': 'Thai', 'scripts': ['thai'], 'encodings':
-['utf-8', 'windows-1252', 'iso-8859-1']}, 'te': {'codes': ['tel', 'te'], 'name':
+['utf-8', 'tis-620']}, 'te': {'codes': ['tel', 'te'], 'name':
 'Telugu', 'scripts': ['telugu'], 'encodings': ['utf-8', 'windows-1252',
 'iso-8859-1']}, 'fin': 'fi', 'ta': {'codes': ['tam', 'ta'], 'name': 'Tamil',
 'scripts': ['tamil'], 'encodings': ['utf-8', 'windows-1252', 'iso-8859-1']},
@@ -28,20 +28,18 @@ languages = {'alb': 'sq', 'scc': 'sr', 'ita': 'it', 'per': 'fa', 'gl': {'codes':
 'iso-8859-1']}, 'en': {'scripts': ['latin'], 'codes': ['eng', 'en'], 'name':
 'English', 'dictionary':
 '/projects/researchers/researchers01/plison/data/ngrams/en.dic', 'encodings':
-['utf-8', 'windows-1252', 'iso-8859-1']}, 'tel': 'te', 'ze': {'scripts':
-['chinese', 'latin'], 'codes': ['zhe', 'ze'], 'name': 'Chinese bilingual',
-'second_language':'en', 'encodings': ['utf-8', 'big5_hkscs', 'big5', 'gb18030', 'gb2312']}, 
+['utf-8', 'windows-1252', 'iso-8859-1']}, 'tel': 'te', 
 'ara': 'ar','eu': {'codes': ['baq', 'eu'], 'name': 'Basque', 'scripts': ['latin'],
 'encodings': ['utf-8', 'windows-1252', 'iso-8859-1']}, 'et': {'codes': ['est',
 'et'], 'name': 'Estonian', 'scripts': ['latin'], 'encodings': ['utf-8',
 'windows-1252', 'iso-8859-1']}, 'ur': {'codes': ['urd', 'ur'], 'name': 'Urdu',
-'scripts': ['arabic'], 'encodings': ['utf-8', 'windows-1252', 'iso-8859-1']},
+'scripts': ['arabic'], 'encodings': ['utf-8', 'windows-1256', 'iso-8859-6']},
 'arm': 'hy', 'es': {'scripts': ['latin'], 'codes': ['spa', 'es'], 'name':
 'Spanish', 'dictionary':
 '/projects/researchers/researchers01/plison/data/ngrams/es.dic', 'encodings':
 ['utf-8', 'windows-1252', 'iso-8859-1']}, 'ru': {'codes': ['rus', 'ru'], 'name':
-'Russian', 'scripts': ['cyrillic'], 'encodings': ['utf-8', 'koi8-r',
-'windows-1251', 'maccyrillic', 'iso-8859-5']}, 'est': 'et', 'ice': 'is', 'ro': {'scripts':
+'Russian', 'scripts': ['cyrillic'], 'encodings': ['utf-8','koi8-r','windows-1251',
+'maccyrillic','iso-8859-5','ibm855','ibm866']},'est': 'et', 'ice': 'is', 'ro': {'scripts':
 ['latin'], 'codes': ['rum', 'ro'], 'name': 'Romanian', 'dictionary':
 '/projects/researchers/researchers01/plison/data/ngrams/ro.dic', 'encodings':
 ['utf-8', 'windows-1250', 'iso-8859-2']}, 'tur': 'tr', 'be': {'codes': ['bel',
@@ -56,8 +54,8 @@ languages = {'alb': 'sq', 'scc': 'sr', 'ita': 'it', 'per': 'fa', 'gl': {'codes':
 ['utf-8', 'windows-1252', 'iso-8859-1']}, 'bs': {'codes': ['bos', 'bs'], 'name':
 'Bosnian', 'scripts': ['latin'], 'encodings': ['utf-8', 'windows-1250',
 'iso-8859-2']}, 'rus': 'ru', 'ja': {'codes': ['jpn', 'ja'], 'name': 'Japanese',
-'scripts': ['japanese'], 'encodings': ['utf-8', 'shiftjis']}, 'pt': {'scripts':
-['latin'], 'codes': ['por', 'pt'], 'name': 'Portuguese', 'dictionary':
+'scripts': ['japanese'], 'encodings': ['utf-8', 'shiftjis','euc-jp', 'iso-2022-jp']}, 
+'pt': {'scripts':['latin'], 'codes': ['por', 'pt'], 'name': 'Portuguese', 'dictionary':
 '/projects/researchers/researchers01/plison/data/ngrams/pt.dic', 'encodings':
 ['utf-8', 'windows-1252', 'iso-8859-1']}, 'bos': 'bs', 'glg': 'gl', 'vie': 'vi',
 'ca': {'codes': ['cat', 'ca'], 'name': 'Catalan', 'scripts': ['latin'],
@@ -68,7 +66,7 @@ languages = {'alb': 'sq', 'scc': 'sr', 'ita': 'it', 'per': 'fa', 'gl': {'codes':
 '/projects/researchers/researchers01/plison/data/ngrams/cz.dic', 'encodings':
 ['utf-8', 'windows-1250', 'iso-8859-2']}, 'zh': {'codes': ['chi', 'zh'], 'name':
 'Chinese (simplified)', 'scripts': ['chinese'], 'encodings': ['utf-8', 'big5',
-'gb18030', 'gb2312']}, 'bre': 'br', 'pob': 'pb', 'tgl': 'tl', 'fre': 'fr', 'chi': 'zh',
+'gb2312', 'gb18030','hz-gb-2312']}, 'bre': 'br', 'pob': 'pb', 'tgl': 'tl', 'fre': 'fr', 'chi': 'zh',
 'af': {'codes': ['afr', 'af'], 'name': 'Afrikaans', 'scripts': ['latin'],
 'encodings': ['utf-8', 'windows-1252', 'iso-8859-1']}, 'swe': 'sv', 'tl':
 {'codes': ['tgl', 'tl'], 'name': 'Tagalog', 'scripts': ['latin'], 'encodings':
@@ -79,8 +77,7 @@ languages = {'alb': 'sq', 'scc': 'sr', 'ita': 'it', 'per': 'fa', 'gl': {'codes':
 'pl': {'scripts': ['latin'], 'codes': ['pol', 'pl'], 'name': 'Polish',
 'dictionary': '/projects/researchers/researchers01/plison/data/ngrams/pl.dic',
 'encodings': ['utf-8', 'windows-1250', 'iso-8859-2']}, 'hy': {'codes': ['arm',
-'hy'], 'name': 'Armenian', 'scripts': ['latin'], 'encodings': ['utf-8',
-'windows-1252', 'iso-8859-1']}, 'hr': {'codes': ['hrv', 'hr'], 'name':
+'hy'], 'name': 'Armenian', 'scripts': ['latin'], 'encodings': ['utf-8']}, 'hr': {'codes': ['hrv', 'hr'], 'name':
 'Croatian', 'scripts': ['latin'], 'encodings': ['utf-8', 'windows-1250',
 'iso-8859-2']}, 'hun': 'hu', 'hu': {'codes': ['hun', 'hu'], 'name': 'Hungarian',
 'scripts': ['latin'], 'encodings': ['utf-8', 'windows-1250', 'iso-8859-2']},
@@ -100,14 +97,14 @@ languages = {'alb': 'sq', 'scc': 'sr', 'ita': 'it', 'per': 'fa', 'gl': {'codes':
 'windows-1252', 'iso-8859-1']}, 'my': {'codes': ['bur', 'my'], 'name':
 'Burmese', 'scripts': ['burmese'], 'encodings': ['utf-8', 'windows-1252',
 'iso-8859-1']}, 'jpn': 'ja', 'vi': {'codes': ['vie', 'vi'], 'name':
-'Vietnamese', 'scripts': ['latin'], 'encodings': ['utf-8', 'windows-1252',
+'Vietnamese', 'scripts': ['latin'], 'encodings': ['utf-8', 'windows-1258',
 'iso-8859-1']}, 'is': {'codes': ['ice', 'is'], 'name': 'Icelandic', 'scripts':
 ['latin'], 'encodings': ['utf-8', 'iso-8859-4']}, 'it': {'scripts': ['latin'],
 'codes': ['ita', 'it'], 'name': 'Italian', 'dictionary':
 '/projects/researchers/researchers01/plison/data/ngrams/it.dic', 'encodings':
-['utf-8', 'windows-1252', 'iso-8859-1']}, 'zt': {'codes': ['zht', 'zt'], 'name':
+['utf-8', 'windows-1252', 'iso-8859-1']}, 'zt': {'codes': ['zht', 'zt', 'zh'], 'name':
 'Chinese (traditional)', 'scripts': ['chinese'], 'encodings': ['utf-8', 'big5',
-'gb18030', 'gb2312']}, 'ar': {'codes': ['ara', 'ar'], 'name': 'Arabic', 'scripts':
+'gb2312', 'gb18030','hz-gb-2312']}, 'ar': {'codes': ['ara', 'ar'], 'name': 'Arabic', 'scripts':
 ['arabic'], 'encodings': ['utf-8', 'windows-1256', 'iso-8859-6']}, 'khm': 'km',
 'tam': 'ta', 'ind': 'id', 'spa': 'es', 'id': {'codes': ['ind', 'id'], 'name':
 'Indonesian', 'scripts': ['latin'], 'encodings': ['utf-8', 'windows-1252',
@@ -120,9 +117,9 @@ languages = {'alb': 'sq', 'scc': 'sr', 'ita': 'it', 'per': 'fa', 'gl': {'codes':
 '/projects/researchers/researchers01/plison/data/ngrams/fr.dic', 'encodings':
 ['utf-8', 'windows-1252', 'iso-8859-1']}, 'may': 'ms', 'fa': {'codes': ['per',
 'fa'], 'name': 'Persian', 'scripts': ['arabic'], 'encodings': ['utf-8',
-'windows-1252', 'iso-8859-1']}, 'mac': 'mk', 'kaz': 'kk', 'lav': 'lv', 'mal':
-'ml', 'urd': 'ur', 'ka': {'codes': ['geo', 'ka'], 'name': 'Georgian', 'scripts':
-['georgian'], 'encodings': ['utf-8', 'windows-1252', 'iso-8859-1']}, 'kk':
+'windows-1256', 'mac_farsi', 'iso-8859-6']}, 'mac': 'mk', 'kaz': 'kk', 'lav': 'lv', 
+'mal':'ml', 'urd': 'ur', 'ka': {'codes': ['geo', 'ka'], 'name': 'Georgian', 'scripts':
+['georgian'], 'encodings': ['utf-8','georgian-ps']}, 'kk':
 {'codes': ['kaz', 'kk'], 'name': 'Kazakh', 'scripts': ['cyrillic'], 'encodings':
 ['utf-8', 'windows-1251', 'windows-1252', 'koi8-r', 'iso-8859-1']}, 
 'sr': {'codes': ['scc', 'sr'], 'name':'Serbian', 'scripts': ['latin', 'cyrillic'], 
@@ -131,7 +128,7 @@ languages = {'alb': 'sq', 'scc': 'sr', 'ita': 'it', 'per': 'fa', 'gl': {'codes':
 'encodings': ['utf-8', 'windows-1250', 'iso-8859-2']}, 'no': {'codes': ['nor',
 'no'], 'name': 'Norwegian', 'scripts': ['latin'], 'encodings': ['utf-8',
 'windows-1252', 'iso-8859-1']}, 'ko': {'codes': ['kor', 'ko'], 'name': 'Korean',
-'scripts': ['korean'], 'encodings': ['utf-8', 'euc_kr']}, 'sv': {'scripts':
+'scripts': ['korean'], 'encodings': ['utf-8', 'euc_kr','iso-2022-kr']}, 'sv': {'scripts':
 ['latin'], 'codes': ['swe', 'sv'], 'name': 'Swedish', 'dictionary':
 '/projects/researchers/researchers01/plison/data/ngrams/se.dic', 'encodings':
 ['utf-8', 'windows-1252', 'iso-8859-1']}, 'km': {'codes': ['khm', 'km'], 'name':
@@ -176,13 +173,7 @@ class Tokeniser():
         self.tokprocess = Popen(self.cmd, 1, shell=True, stdin=PIPE, stdout=PIPE)
         
         self.language = language
-        
-        # In case of a "bilingual" subtitle, creates a 2nd tokeniser
-        if language and language.second_language:
-            self.secondTokeniser = Tokeniser(language.second_language)
-        else:
-            self.secondTokeniser = None
-        
+         
   
     def tokenise(self, sentence):
         """Tokenises the given sentence and corrects the tokens 
@@ -225,8 +216,6 @@ class Tokeniser():
         self.tokprocess.terminate()
         self.tokprocess.stdin.close()
         self.tokprocess.stdout.close()
-        if self.secondTokeniser:
-            self.secondTokeniser.close()
     
 
 class SpellChecker():
@@ -309,7 +298,6 @@ class Language:
             self.direction = "rtl"
         else:
             self.direction = "ltr"
-        self.second_language = None
         if [s for s in self.scripts if s != "latin" and s != "cyrillic" and s != "greek"]:
             self.unicase = True
         else:
@@ -355,11 +343,11 @@ class Language:
             import langid
         except RuntimeError:
             return
-        result = langid.classify(text)
-        if result[0] in self.codes:
-            return result[1]
-        else:
-            return 0.0
+        result = langid.rank(text)
+        for pair in result:
+            if pair[0] in self.codes:
+                return pair[1]
+        return 0.0
        
 
 def getLanguage(langcode):
@@ -375,8 +363,6 @@ def getLanguage(langcode):
             lang.codes = content["codes"]
             if "dictionary" in content:
                 lang.dictionary = content["dictionary"]
-            if "second_language" in content:
-                lang.second_language = getLanguage(content["second_language"])
             return lang
         else:
             return getLanguage(content)
@@ -471,4 +457,6 @@ def strip(word):
     stripped = normalised.encode("ascii", "replace").lower().decode("ascii")
     stripped = re.sub(r"[\.,;':\-!]", "", stripped)
     return stripped
+
+
   
