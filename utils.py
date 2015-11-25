@@ -1,5 +1,6 @@
+# -*- coding: utf-8 -*- 
 
-import os, json, io, collections, re, unicodedata, sys, errno
+import os, json, io, collections, re, unicodedata, sys, errno, math
 from subprocess import Popen, PIPE
 
 # Language data (codes, names, encodings, scripts, dictionaries)
@@ -8,17 +9,17 @@ languages = {'alb': 'sq', 'scc': 'sr', 'ita': 'it', 'per': 'fa', 'gl': {'codes':
 'windows-1252', 'iso-8859-1']}, 'mne': 'me', 'ell': 'el', 'hrv': 'hr', 'tr':
 {'codes': ['tur', 'tr'], 'name': 'Turkish', 'scripts': ['latin'], 'encodings':
 ['utf-8', 'windows-1254', 'iso-8859-9']}, 'lv': {'codes': ['lav', 'lv'], 'name':
-'Latvian', 'scripts': ['latin'], 'encodings': ['utf-8', 'windows-1252',
-'iso-8859-1']}, 'lt': {'codes': ['lit', 'lt'], 'name': 'Lithuanian', 'scripts':
+'Latvian', 'scripts': ['latin'], 'encodings': ['utf-8', 'windows-1257', 'iso-8859-4']}, 
+'lt': {'codes': ['lit', 'lt'], 'name': 'Lithuanian', 'scripts':
 ['latin'], 'encodings': ['utf-8', 'windows-1257', 'iso-8859-4']}, 'nor': 'no',
 'th': {'codes': ['tha', 'th'], 'name': 'Thai', 'scripts': ['thai'], 'encodings':
 ['utf-8', 'tis-620']}, 'te': {'codes': ['tel', 'te'], 'name':
-'Telugu', 'scripts': ['telugu'], 'encodings': ['utf-8', 'windows-1252',
-'iso-8859-1']}, 'fin': 'fi', 'ta': {'codes': ['tam', 'ta'], 'name': 'Tamil',
-'scripts': ['tamil'], 'encodings': ['utf-8', 'windows-1252', 'iso-8859-1']},
+'Telugu', 'scripts': ['telugu'], 'encodings': ['utf-8']}, 'fin': 'fi', 'ta': {'codes': ['tam', 'ta'], 'name': 'Tamil',
+'scripts': ['tamil'], 'encodings': ['utf-8']},
 'ger': 'de', 'dan': 'da', 'de': {'scripts': ['latin'], 'codes': ['ger', 'de'],
 'name': 'German', 'dictionary':
-'/projects/researchers/researchers01/plison/data/ngrams/de.dic', 'encodings':
+'/projects/researchers/researchers01/plison/data/unigrams/de.dic', "lm": 
+'/projects/researchers/researchers01/plison/data/bigrams/de.blm', 'encodings':
 ['utf-8', 'windows-1252', 'iso-8859-1']}, 'da': {'codes': ['dan', 'da'], 'name':
 'Danish', 'scripts': ['latin'], 'encodings': ['utf-8', 'windows-1252',
 'iso-8859-1']}, 'mon': 'mn', 'geo': 'ka', 'hin': 'hi', 'baq': 'eu', 'el':
@@ -27,7 +28,8 @@ languages = {'alb': 'sq', 'scc': 'sr', 'ita': 'it', 'per': 'fa', 'gl': {'codes':
 'Esperanto', 'scripts': ['latin'], 'encodings': ['utf-8', 'windows-1252',
 'iso-8859-1']}, 'en': {'scripts': ['latin'], 'codes': ['eng', 'en'], 'name':
 'English', 'dictionary':
-'/projects/researchers/researchers01/plison/data/ngrams/en.dic', 'encodings':
+'/projects/researchers/researchers01/plison/data/unigrams/en.dic', "lm": 
+'/projects/researchers/researchers01/plison/data/bigrams/en.blm', 'encodings':
 ['utf-8', 'windows-1252', 'iso-8859-1']}, 'tel': 'te', 
 'ara': 'ar','eu': {'codes': ['baq', 'eu'], 'name': 'Basque', 'scripts': ['latin'],
 'encodings': ['utf-8', 'windows-1252', 'iso-8859-1']}, 'et': {'codes': ['est',
@@ -36,12 +38,14 @@ languages = {'alb': 'sq', 'scc': 'sr', 'ita': 'it', 'per': 'fa', 'gl': {'codes':
 'scripts': ['arabic'], 'encodings': ['utf-8', 'windows-1256', 'iso-8859-6']},
 'arm': 'hy', 'es': {'scripts': ['latin'], 'codes': ['spa', 'es'], 'name':
 'Spanish', 'dictionary':
-'/projects/researchers/researchers01/plison/data/ngrams/es.dic', 'encodings':
+'/projects/researchers/researchers01/plison/data/unigrams/es.dic', "lm": 
+'/projects/researchers/researchers01/plison/data/bigrams/es.blm', 'encodings':
 ['utf-8', 'windows-1252', 'iso-8859-1']}, 'ru': {'codes': ['rus', 'ru'], 'name':
 'Russian', 'scripts': ['cyrillic'], 'encodings': ['utf-8','koi8-r','windows-1251',
 'maccyrillic','iso-8859-5','ibm855','ibm866']},'est': 'et', 'ice': 'is', 'ro': {'scripts':
 ['latin'], 'codes': ['rum', 'ro'], 'name': 'Romanian', 'dictionary':
-'/projects/researchers/researchers01/plison/data/ngrams/ro.dic', 'encodings':
+'/projects/researchers/researchers01/plison/data/unigrams/ro.dic', "lm": 
+'/projects/researchers/researchers01/plison/data/bigrams/ro.blm', 'encodings':
 ['utf-8', 'windows-1250', 'iso-8859-2']}, 'tur': 'tr', 'be': {'codes': ['bel',
 'be'], 'name': 'Belarusian', 'scripts': ['cyrillic'], 'encodings': ['utf-8',
 'koi8-r', 'windows-1251', 'iso-8859-5']}, 'bg': {'codes': ['bul', 'bg'], 'name':
@@ -49,21 +53,23 @@ languages = {'alb': 'sq', 'scc': 'sr', 'ita': 'it', 'per': 'fa', 'gl': {'codes':
 'iso-8859-5']}, 'uk': {'codes': ['ukr', 'uk'], 'name': 'Ukrainian', 'scripts':
 ['cyrillic'], 'encodings': ['utf-8', 'windows-1251', 'koi8-u', 'iso-8859-5']},
 'rum': 'ro', 'bn': {'codes': ['ben', 'bn'], 'name': 'Bengali', 'scripts':
-['bengali'], 'encodings': ['utf-8', 'windows-1252', 'iso-8859-1']}, 'br':
+['bengali'], 'encodings': ['utf-8']}, 'br':
 {'codes': ['bre', 'br'], 'name': 'Breton', 'scripts': ['latin'], 'encodings':
 ['utf-8', 'windows-1252', 'iso-8859-1']}, 'bs': {'codes': ['bos', 'bs'], 'name':
-'Bosnian', 'scripts': ['latin'], 'encodings': ['utf-8', 'windows-1250',
-'iso-8859-2']}, 'rus': 'ru', 'ja': {'codes': ['jpn', 'ja'], 'name': 'Japanese',
-'scripts': ['japanese'], 'encodings': ['utf-8', 'shiftjis','euc-jp', 'iso-2022-jp']}, 
+'Bosnian', 'scripts': ['latin'], 'encodings': ['utf-8','windows-1250', 'windows-1251', 'windows-1252', 
+'iso-8859-2', 'iso-8859-5']}, 'rus': 'ru', 'ja': {'codes': ['jpn', 'ja'], 'name': 'Japanese',
+'scripts': ['japanese'], 'encodings': ['utf-8', 'shiftjis','euc-jp', 'cp932','iso-2022-jp']}, 
 'pt': {'scripts':['latin'], 'codes': ['por', 'pt'], 'name': 'Portuguese', 'dictionary':
-'/projects/researchers/researchers01/plison/data/ngrams/pt.dic', 'encodings':
+'/projects/researchers/researchers01/plison/data/unigrams/pt.dic', "lm": 
+'/projects/researchers/researchers01/plison/data/bigrams/pt.blm', 'encodings':
 ['utf-8', 'windows-1252', 'iso-8859-1']}, 'bos': 'bs', 'glg': 'gl', 'vie': 'vi',
 'ca': {'codes': ['cat', 'ca'], 'name': 'Catalan', 'scripts': ['latin'],
 'encodings': ['utf-8', 'windows-1252', 'iso-8859-1']}, 'por': 'pt', 'ukr': 'uk',
 'pol': 'pl', 'fi': {'codes': ['fin', 'fi'], 'name': 'Finnish', 'scripts':
 ['latin'], 'encodings': ['utf-8', 'windows-1252', 'iso-8859-1']}, 'cs':
 {'scripts': ['latin'], 'codes': ['cze', 'cs'], 'name': 'Czech', 'dictionary':
-'/projects/researchers/researchers01/plison/data/ngrams/cz.dic', 'encodings':
+'/projects/researchers/researchers01/plison/data/unigrams/cz.dic', "lm": 
+'/projects/researchers/researchers01/plison/data/bigrams/cz.blm', 'encodings':
 ['utf-8', 'windows-1250', 'iso-8859-2']}, 'zh': {'codes': ['chi', 'zh'], 'name':
 'Chinese (simplified)', 'scripts': ['chinese'], 'encodings': ['utf-8', 'big5',
 'gb2312', 'gb18030','hz-gb-2312']}, 'bre': 'br', 'pob': 'pb', 'tgl': 'tl', 'fre': 'fr', 'chi': 'zh',
@@ -71,37 +77,37 @@ languages = {'alb': 'sq', 'scc': 'sr', 'ita': 'it', 'per': 'fa', 'gl': {'codes':
 'encodings': ['utf-8', 'windows-1252', 'iso-8859-1']}, 'swe': 'sv', 'tl':
 {'codes': ['tgl', 'tl'], 'name': 'Tagalog', 'scripts': ['latin'], 'encodings':
 ['utf-8', 'windows-1252', 'iso-8859-1']}, 'pb': {'scripts': ['latin'], 'codes':
-['pob', 'pb'], 'name': 'Portuguese (BR)', 'dictionary':
-'/projects/researchers/researchers01/plison/data/ngrams/pt.dic', 'encodings':
+['pob', 'pt'], 'name': 'Portuguese (BR)', 'dictionary':
+'/projects/researchers/researchers01/plison/data/unigrams/pt.dic', "lm": 
+'/projects/researchers/researchers01/plison/data/bigrams/pt.blm', 'encodings':
 ['utf-8', 'windows-1252', 'iso-8859-1']}, 'heb': 'he', 'kor': 'ko', 'dut': 'nl',
-'pl': {'scripts': ['latin'], 'codes': ['pol', 'pl'], 'name': 'Polish',
-'dictionary': '/projects/researchers/researchers01/plison/data/ngrams/pl.dic',
+'pl': {'scripts': ['latin'], 'codes': ['pol', 'pl'], 'name': 'Polish','dictionary':
+'/projects/researchers/researchers01/plison/data/unigrams/pl.dic', "lm": 
+'/projects/researchers/researchers01/plison/data/bigrams/pl.blm',
 'encodings': ['utf-8', 'windows-1250', 'iso-8859-2']}, 'hy': {'codes': ['arm',
 'hy'], 'name': 'Armenian', 'scripts': ['latin'], 'encodings': ['utf-8']}, 'hr': {'codes': ['hrv', 'hr'], 'name':
 'Croatian', 'scripts': ['latin'], 'encodings': ['utf-8', 'windows-1250',
 'iso-8859-2']}, 'hun': 'hu', 'hu': {'codes': ['hun', 'hu'], 'name': 'Hungarian',
 'scripts': ['latin'], 'encodings': ['utf-8', 'windows-1250', 'iso-8859-2']},
 'hi': {'codes': ['hin', 'hi'], 'name': 'Hindi', 'scripts': ['devanagari'],
-'encodings': ['utf-8', 'windows-1252', 'iso-8859-1']}, 'bul': 'bg', 'he':
+'encodings': ['utf-8']}, 'bul': 'bg', 'he':
 {'codes': ['heb', 'he'], 'name': 'Hebrew', 'scripts': ['hebrew'], 'encodings':
 ['utf-8', 'windows-1255', 'iso-8859-8']}, 'me': {'codes': ['mne', 'me'], 'name':
 'Montenegrin', 'scripts': ['latin'], 'encodings': ['utf-8', 'windows-1252',
 'iso-8859-1']}, 'ben': 'bn', 'zht': 'zt', 'bel': 'be', 'ml': {'codes': ['mal',
-'ml'], 'name': 'Malayalam', 'scripts': ['malayalam'], 'encodings': ['utf-8',
-'windows-1252', 'iso-8859-1']}, 'slv': 'sl', 'mn': {'codes': ['mon', 'mn'],
-'name': 'Mongolian', 'scripts': ['mongolian'], 'encodings': ['utf-8',
-'windows-1252', 'iso-8859-1']}, 'mk': {'codes': ['mac', 'mk'], 'name':
+'ml'], 'name': 'Malayalam', 'scripts': ['malayalam'], 'encodings': ['utf-8']}, 'slv': 'sl', 'mn': {'codes': ['mon', 'mn'],
+'name': 'Mongolian', 'scripts': ['mongolian'], 'encodings': ['utf-8']}, 'mk': {'codes': ['mac', 'mk'], 'name':
 'Macedonian', 'scripts': ['latin'], 'encodings': ['utf-8', 'windows-1251',
 'iso-8859-5']}, 'cat': 'ca', 'slo': 'sk', 'zhe': 'ze', 'ms': {'codes': ['may',
 'ms'], 'name': 'Malay', 'scripts': ['latin'], 'encodings': ['utf-8',
 'windows-1252', 'iso-8859-1']}, 'my': {'codes': ['bur', 'my'], 'name':
-'Burmese', 'scripts': ['burmese'], 'encodings': ['utf-8', 'windows-1252',
-'iso-8859-1']}, 'jpn': 'ja', 'vi': {'codes': ['vie', 'vi'], 'name':
+'Burmese', 'scripts': ['burmese'], 'encodings': ['utf-8']}, 'jpn': 'ja', 'vi': {'codes': ['vie', 'vi'], 'name':
 'Vietnamese', 'scripts': ['latin'], 'encodings': ['utf-8', 'windows-1258',
 'iso-8859-1']}, 'is': {'codes': ['ice', 'is'], 'name': 'Icelandic', 'scripts':
 ['latin'], 'encodings': ['utf-8', 'iso-8859-4']}, 'it': {'scripts': ['latin'],
 'codes': ['ita', 'it'], 'name': 'Italian', 'dictionary':
-'/projects/researchers/researchers01/plison/data/ngrams/it.dic', 'encodings':
+'/projects/researchers/researchers01/plison/data/unigrams/it.dic', "lm": 
+'/projects/researchers/researchers01/plison/data/bigrams/it.blm', 'encodings':
 ['utf-8', 'windows-1252', 'iso-8859-1']}, 'zt': {'codes': ['zht', 'zt', 'zh'], 'name':
 'Chinese (traditional)', 'scripts': ['chinese'], 'encodings': ['utf-8', 'big5',
 'gb2312', 'gb18030','hz-gb-2312']}, 'ar': {'codes': ['ara', 'ar'], 'name': 'Arabic', 'scripts':
@@ -110,11 +116,13 @@ languages = {'alb': 'sq', 'scc': 'sr', 'ita': 'it', 'per': 'fa', 'gl': {'codes':
 'Indonesian', 'scripts': ['latin'], 'encodings': ['utf-8', 'windows-1252',
 'iso-8859-1']}, 'cze': 'cs', 'nl': {'scripts': ['latin'], 'codes': ['dut',
 'nl'], 'name': 'Dutch', 'dictionary':
-'/projects/researchers/researchers01/plison/data/ngrams/nl.dic', 'encodings':
+'/projects/researchers/researchers01/plison/data/unigrams/nl.dic', "lm": 
+'/projects/researchers/researchers01/plison/data/bigrams/nl.blm', 'encodings':
 ['utf-8', 'windows-1252', 'iso-8859-1']}, 'eng': 'en', 'lit': 'lt', 'bur': 'my',
 'sin': 'si', 'afr': 'af', 'fr': {'scripts': ['latin'], 'codes': ['fre', 'fr'],
 'name': 'French', 'dictionary':
-'/projects/researchers/researchers01/plison/data/ngrams/fr.dic', 'encodings':
+'/projects/researchers/researchers01/plison/data/unigrams/fr.dic', "lm": 
+'/projects/researchers/researchers01/plison/data/bigrams/fr.blm', 'encodings':
 ['utf-8', 'windows-1252', 'iso-8859-1']}, 'may': 'ms', 'fa': {'codes': ['per',
 'fa'], 'name': 'Persian', 'scripts': ['arabic'], 'encodings': ['utf-8',
 'windows-1256', 'mac_farsi', 'iso-8859-6']}, 'mac': 'mk', 'kaz': 'kk', 'lav': 'lv', 
@@ -126,17 +134,17 @@ languages = {'alb': 'sq', 'scc': 'sr', 'ita': 'it', 'per': 'fa', 'gl': {'codes':
 'encodings': ['utf-8','windows-1250', 'windows-1251', 'windows-1252', 'iso-8859-2', 
 'iso-8859-5']},'sq': {'codes': ['alb', 'sq'], 'name': 'Albanian', 'scripts': ['latin'],
 'encodings': ['utf-8', 'windows-1250', 'iso-8859-2']}, 'no': {'codes': ['nor',
-'no'], 'name': 'Norwegian', 'scripts': ['latin'], 'encodings': ['utf-8',
+'no','nb', 'nn'], 'name': 'Norwegian', 'scripts': ['latin'], 'encodings': ['utf-8',
 'windows-1252', 'iso-8859-1']}, 'ko': {'codes': ['kor', 'ko'], 'name': 'Korean',
-'scripts': ['korean'], 'encodings': ['utf-8', 'euc_kr','iso-2022-kr']}, 'sv': {'scripts':
+'scripts': ['korean'], 'encodings': ['utf-8', 'euc-kr','iso-2022-kr','cp949']}, 'sv': {'scripts':
 ['latin'], 'codes': ['swe', 'sv'], 'name': 'Swedish', 'dictionary':
-'/projects/researchers/researchers01/plison/data/ngrams/se.dic', 'encodings':
+'/projects/researchers/researchers01/plison/data/unigrams/se.dic', "lm": 
+'/projects/researchers/researchers01/plison/data/bigrams/se.blm', 'encodings':
 ['utf-8', 'windows-1252', 'iso-8859-1']}, 'km': {'codes': ['khm', 'km'], 'name':
-'Khmer', 'scripts': ['khmer'], 'encodings': ['utf-8', 'windows-1252',
-'iso-8859-1']}, 'sk': {'codes': ['slo', 'sk'], 'name': 'Slovak', 'scripts':
+'Khmer', 'scripts': ['khmer'], 'encodings': ['utf-8']}, 'sk': {'codes': ['slo', 'sk'], 'name': 'Slovak', 'scripts':
 ['latin'], 'encodings': ['utf-8', 'windows-1250', 'iso-8859-2']}, 'epo': 'eo',
 'si': {'codes': ['sin', 'si'], 'name': 'Sinhalese', 'scripts': ['sinhala'],
-'encodings': ['utf-8', 'windows-1252', 'iso-8859-1']}, 'sl': {'codes': ['slv',
+'encodings': ['utf-8']}, 'sl': {'codes': ['slv',
 'sl'], 'name': 'Slovenian', 'scripts': ['latin'], 'encodings': ['utf-8',
 'windows-1250', 'iso-8859-2']}, 'tha': 'th'}
 
@@ -163,13 +171,15 @@ class Tokeniser():
         """
         
         # Starts a process with the tokeniser tool
+        if isinstance(language,str):
+           language = getLanguage(language)
         if language and "Japanese" in language.name:
             self.cmd = kyteaPath + "/bin/kytea -notags -model " + kyteaModels["ja"]
         elif language and "Chinese" in language.name:
             self.cmd = kyteaPath + "/bin/kytea -notags -model " + kyteaModels["zh"]
         else:
             self.cmd = tokeniserPath + " -no-escape -q -b "
-            self.cmd += ("-l %s" % language.codes[-1] if language else "")       
+            self.cmd += ("-l %s" % language.codes[0] if language else "")       
         self.tokprocess = Popen(self.cmd, 1, shell=True, stdin=PIPE, stdout=PIPE)
         
         self.language = language
@@ -204,9 +214,12 @@ class Tokeniser():
             if token.startswith("-"):
                 corrected.append("-")
                 token = token[1:]
-            if not token:
-                continue
-            corrected.append(token)            
+            elif token.endswith("-"):
+                corrected.append(token[:-1])
+                corrected.append("-")
+                continue 
+            if token:
+                corrected.append(token)            
         return corrected
     
     
@@ -217,46 +230,142 @@ class Tokeniser():
         self.tokprocess.stdin.close()
         self.tokprocess.stdout.close()
     
+wordRegex = re.compile("\w[\w\-']*$")
+digitRegex = re.compile("\d")
 
 class SpellChecker():
    
-   def __init__(self, language=None):
+    def __init__(self, language=None):
+       
+       if isinstance(language,str):
+           language = getLanguage(language)
+       self.language = language
        self.dictionary = language.getDictionary() if language else None
+       self.lm = language.getLanguageModel() if language else None
        self.nbUnknowns = 0
        self.nbCorrections = 0
+       self.nbTruecased = 0
        
+    
+    def _score(self, token, previous=None):
+        if self.lm:
+            if previous:
+                scores = self.lm.full_scores(previous + " " + token, False, False)                        
+            else:
+                scores = self.lm.full_scores(token, True, False)
+            for logprob, _, out_of_vocab in scores:
+               pass
+            return logprob, not out_of_vocab
+        elif self.dictionary:
+            if self.dictionary.isWord(token):
+                return self.dictionary.getFrequency(token), True
+            else:
+                return -10, False
+        return 0, True
+    
+    
+    def recapitalise(self, token, previous=None, upperline=False):
+        
+        scores = {}
+        logprob, isword = self._score(token, previous)
+        scores[token] = logprob + (0 if isword else -5)
+        scores[token] += (-1.0 if upperline else 0.0)
+        
+        alttoken1 = token.lower()
+        logprob1, isword1 = self._score(alttoken1, previous) 
+        scores[alttoken1] = logprob1 + (-0.4 if isword1 else -5)
+        
+        alttoken2 = token[0]  + token[1:].lower()
+        logprob2, isword2 = self._score(alttoken2, previous)
+        scores[alttoken2] = logprob2 + (-0.5 if isword2 else -5)
+        
+        if not isword and not isword1 and not isword2:
+            alternatives1 = list(self._getAlternatives(alttoken1, previous))
+            alternatives2 = list(self._getAlternatives(alttoken2, previous))
+            for alt in alternatives1 + alternatives2:
+                scores[alt] = self._score(alt, previous)[0] -0.5
+            self.nbUnknowns += 1
+         
+        best = max(scores, key=lambda t : scores[t])
+        if best!=token:
+            self.nbTruecased += 1
+            if not previous:
+                best = best[0].upper() + best[1:]
+            if best!=alttoken1 and best!=alttoken2:
+                self.nbCorrections += 1
+        return best
+    
        
-   def spellcheck(self, word):
+    def spellcheck(self, token, previous=None):
         """Spell-check the word.  The method first checks if the word is in the
         dictionary.  If yes, the word is returned.  Else, the method search for
         a possible correction, and returns it.  If no correction could be found,
         the initial word is returned.  
         
         """    
-        if not word.isalpha() or not word[0].islower():
-            return word
-        elif self.dictionary and not self.dictionary.isWord(word):
+
+        if not wordRegex.match(token) or digitRegex.search(token):
+            return token, 1.0
+        elif self.language and "latin" not in self.language.scripts:
+            return token, 1.0
+        try:
+            token.encode("iso-8859-1")
+        except:
+            return token, 1.0
+                             
+        score, isword = self._score(token, previous)
+        if token.istitle():
+            score += (5.0 if token[0]!= "I" else 2.0)
+        elif not previous and token.startswith("l"):
+            score += -2
+        else:
+            score += 1.0
+        altprobs = {token:math.pow(10,score)}
+        total =altprobs[token]
+        if not isword or score < -6.0:
+            alternatives = self._getAlternatives(token, previous)
+            for alt in alternatives:
+                score = self._score(alt, previous)[0]
+                altprobs[alt] = math.pow(10, score)
+                total += altprobs[alt]
+        for alt in altprobs:
+            altprobs[alt] = altprobs[alt] / total
+        best = max(altprobs.keys(), key=lambda a : altprobs[a])      
+
+        if not isword:
             self.nbUnknowns += 1
-            correction = self._correct(word)
-            if correction != word:
-                sys.stderr.write("Correction: %s -> %s\n" % (word, correction))
-                self.nbCorrections += 1
-            word = correction
-                    
-        return word
+        if best != token:
+            before = ((previous + " ") if previous else "") + token
+            after = ((previous + " ") if previous else "") + best
+            sys.stderr.write("Correction: %s -> %s (probability %f)\n" % (before, after, altprobs[best]))
+            self.nbCorrections += 1
+        
+        return best, altprobs[best]
+         
+            
 
-
-   def _correct(self, word):
+    def _getAlternatives(self, word, previous=None, recursive=True):
         """Finds the best correction for the word, if one can be found.  The
         method tries to correct common OCR errors, wrong accents, and a few 
         other heuristics.
         
-        """            
+        """   
+        corrections = set([])
+        if word in ["ain","aren","couldn","didn","doesn","don","hadn",
+                    "hasn","haven","mustn","needn","shan","shouldn",
+                    "wasn","weren", "wouldn","won", "isn"]:
+            return corrections
+        
+        if previous and word.isupper():
+            corrections.add(word.lower())
+        elif (recursive and self.language and not self.language.unicase and word.isalpha() 
+            and not word.islower() and not word.isupper() and not word.istitle()):
+            return corrections.union(self._getAlternatives(word.lower(), previous, False))
+       
         # OCR errors
         mappings = [("ii", "ll"), ("II", "ll"), ("l", "I"),
-                    ("i", "l"), ("I", "l"), ("l", "i"), ("0", "O")]
+                    ("i", "l"), ("I", "l"), ("l", "i")]
         
-        replaces = []
         for m in mappings:
             matches = re.finditer(r"(?=%s)" % (m[0]), word)
             for match in matches:
@@ -264,19 +373,33 @@ class SpellChecker():
                 replace = word[:pos] + m[1] + word[pos + len(m[0]):]
                 if (self.dictionary.isWord(replace) and 
                     (m != ("l", "I") or pos == 0)):
-                    replaces.append(replace)
-        if replaces:
-            return max(replaces, key=self.dictionary.getFrequency) 
+                    corrections.add(replace)
         
         # Wrong accents
-        if self.dictionary.no_accents and not self.dictionary.isWord(word):
-            return self.dictionary.correctAccents(word)
+        if self.dictionary.no_accents:
+            corrected = self.dictionary.correctAccents(word)
+            if corrected != word:
+                corrections.add(corrected)
         
         # correcting errors such as "entertainin" --> "entertaining"
-        if word.endswith("in") and self.dictionary.isWord(word + "g"):
-            return word + "g"
-                  
-        return word
+        if (self.language and "en" in self.language.codes 
+            and word.endswith("in") and self.dictionary.isWord(word + "g")):
+            corrections.add(word + "g")      
+        return corrections
+
+
+
+def getProbDist(text):
+    try:
+        import langid
+    except RuntimeError:
+        return
+    result = langid.rank(text)
+    result2 = {}
+    for r in result:
+        if r[1]>0.01:
+            result2[r[0]]=r[1]
+    return result2
 
 
 class Language:
@@ -292,6 +415,7 @@ class Language:
         self.name = name
         self.codes = [] 
         self.dictionary = None
+        self.lm = None
         self.scripts = scripts
         self.encodings = []
         if "arabic" in self.scripts or "hebrew" in self.scripts:
@@ -302,6 +426,13 @@ class Language:
             self.unicase = True
         else:
             self.unicase = False
+        if [s for s in self.scripts if s != "latin" and s != "cyrillic" 
+            and s != "greek" and s!="hebrew"]: #and s!="arabic"
+            self.alwaysSplit = True
+        else:
+            self.alwaysSplit = False
+        
+        
             
     def getDictionary(self):
         """Constructs the dictionary for the language."""
@@ -309,8 +440,20 @@ class Language:
         if isinstance(self.dictionary, Dictionary):
             return self.dictionary
         elif self.dictionary:
-            self.dictionary = Dictionary(self.dictionary)
+            accented = self.codes[0] in ["fr","de","es","it","pt"]
+            self.dictionary = Dictionary(self.dictionary, accented)
             return self.dictionary
+        return None
+    
+        
+    
+    def getLanguageModel(self):
+        import kenlm
+        if isinstance(self.lm, kenlm.LanguageModel):
+            return self.lm
+        elif self.lm:
+            self.lm = kenlm.LanguageModel(self.lm)
+            return self.lm
         return None
     
 
@@ -333,22 +476,36 @@ class Language:
             return other.name == self.name
         return other == self.name or other in self.codes
     
-    
     def getProb(self, text):
         """Returns the probability that the given text is written in the language, 
         using the langid library.
         
         """
-        try:
-            import langid
-        except RuntimeError:
-            return
-        result = langid.rank(text)
-        for pair in result:
-            if pair[0] in self.codes:
-                return pair[1]
+        distrib = getProbDist(text)
+        shortcode = self.codes[0]
+        if "no" in self.codes:
+            return sum([distrib[x] for x in ["nb","no"] if x in distrib])
+        elif "sr" in self.codes or "hr" in self.codes or "bs" in self.codes:
+            prob = 0.0
+            for l in ["sr","hr","bs"]:
+                multi = 1.0 if l==shortcode else 0.5
+                prob += ((distrib[l]*multi) if l in distrib else 0)
+            return prob
+        elif shortcode in distrib:
+            return distrib[shortcode]
+            return max(distrib["hr"]-0.2,0.0)
+        elif "lb" in distrib and "lav" in self.codes:
+            return max(distrib["lb"]-0.2,0.0)   
+        elif "ru" in distrib and "ukr" in self.codes:
+            return max(distrib["ru"]-0.4,0.0)   
+        elif "zh" in distrib and "zt" in self.codes:
+            return max(distrib["zh"] - 0.1,0.0)
+        elif "ms" in distrib and "id" in self.codes:
+            return max(distrib["ms"]-0.4,0.0) 
+        elif "id" in distrib and "ms" in self.codes:
+         return max(distrib["id"]-0.4,0.0) 
         return 0.0
-       
+    
 
 def getLanguage(langcode):
     """Returns the language object given the code. If no language can be found
@@ -360,9 +517,11 @@ def getLanguage(langcode):
         if isinstance(content, dict):
             lang = Language(content["name"], content["scripts"])
             lang.encodings = content["encodings"]
-            lang.codes = content["codes"]
+            lang.codes = sorted(content["codes"], key=lambda k: len(k))
             if "dictionary" in content:
                 lang.dictionary = content["dictionary"]
+            if "lm" in content:
+                lang.lm = content["lm"]
             return lang
         else:
             return getLanguage(content)
@@ -377,7 +536,7 @@ class Dictionary():
     (such as OCR errors and wrong accents).
     
     """
-    def __init__(self, dicFile):
+    def __init__(self, dicFile, accented=False):
         """Creates a new dictionary from a given file.  Each line in the file 
         must contain a word followed by a space or tab and an integer 
         representing the frequency of the word.
@@ -402,7 +561,7 @@ class Dictionary():
         # can detect accents in the dictionary). 
         self.no_accents = {}
         first_words = list(self.words.keys())[0:100]
-        if len(re.findall(r"[\xe8\xe9\xa8\xa9\xa0\xb9]", " ".join(first_words))) > 10:
+        if accented:
             sys.stderr.write("Creating unaccented version of dictionary " + dicFile + "\n")
             for w in self.words:
                 stripped = strip(w)
@@ -446,7 +605,8 @@ class Dictionary():
 
 
 # Equivalence table between specific (German) characters and their ascii encoding
-eqTable = {ord('ß'):'ss', ord('ç'):'c', ord('ä'):'ae', ord('ö'):'oe', ord('ü'):'ue'}
+eqTable = {ord('ß'):'ss', ord('ç'):'c', ord('ä'):'ae', ord('ö'):'oe', ord('ü'):'ue', 
+           ord('Ö'):'Oe', ord("Ü"):"Ue", ord("Ä"):'Ae'}
     
 
 def strip(word):
@@ -454,9 +614,13 @@ def strip(word):
     
     word2 = word.translate(eqTable)   
     normalised = unicodedata.normalize('NFKD', word2)       
-    stripped = normalised.encode("ascii", "replace").lower().decode("ascii")
-    stripped = re.sub(r"[\.,;':\-!]", "", stripped)
+    stripped = normalised.encode("ascii", "replace").decode("ascii")
+ #   stripped = re.sub(r"[\.,;':\-!]", "", stripped)
     return stripped
+
+
+   
+        
 
 
   

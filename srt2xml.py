@@ -19,20 +19,24 @@ timingRegex = re.compile("\s*(\-?\d+[:,\s\.]\s?\-?\d+[:,\s\.]\s?\-?\d+(?:[:,\s\.
                          + ">\s*(\-?\d+[:,\s\.]\s?\-?\d+[:,\s\.]\s?\-?\d+(?:[:,\s\.،]\s?\d+))")
 # Regex to detect html tags
 tagRegex = re.compile("<\s*\/?\s*?\w+(?:\s\w+(?:=['\"]?(?:.*?)['\"]?)?)*\s*?\/?\s*>")
+# Regex to detect srt-type tags
+tagRegex2 = re.compile("\{[yY]:[ib]\d?\}(.*?)(?:(?:\{[yY]\})|$)")
+tagRegex3 = re.compile(r"{\\[bius]\d}(.*?){\\[bius]\d}")
 # Regex to detect characters to remove
 tostripRegex = re.compile("[\\&\\<\\>]")
 # Regex to detect multiple occurrence of punctuation marks (except the dot)
 toReduceRegex = re.compile(r"([\?!:,;]|\s)\1+")
 
-# Sentence-ending markers
-stopPunctuations = ['.','!','?', ':', ';','。','！','？', '；','：','؟','।','|']
+# Sentence-ending markers (strong and weak)
+stopPunctuations1 = ['!','?', '！','？', '؟','।']
+stopPunctuations2 = ['.', ':', ';','。','；','：','|']
 
 # Quotation markers (double and single)
 quotationRegex = re.compile("``|''|´´|[“„”«»]")
 quotationRegex2 = re.compile("[‘’›‹]")
 
 # Languages for which multiple alternative encodings are possible
-difficult_langs = ["chi", 'zht','jpn','kor','bul','ell','heb','tha','rus','scc']
+difficult_langs = ["zh", 'zt','ja','ko','bg','el','he','th','ru','sr']
 
 PAUSE_THR1 = 1       # > 1 second --> most probably new sentence
 PAUSE_THR2 = 3       # > 3 second --> definitely new sentence
@@ -59,7 +63,7 @@ class SubtitleConverter:
                     
         self.lang = language
         self.alwaysSplit = alwaysSplit
-        if self.lang and "tha" in self.lang.codes:
+        if self.lang and self.lang.alwaysSplit:
             self.alwaysSplit = True
             
         self.inputs = input if isinstance(input,list) else [input]
@@ -80,17 +84,16 @@ class SubtitleConverter:
         and writing the converted content into the output file.
         """  
              
-        self.curLine = None         # Current line in the raw file
-        self.curBlock = None        # Current block
-        self.curLineIndex = 0       # Current line index in the raw file
-        self.timeOffset = 0         # Time offset (for multi-CD subtitles)
+        self.curLine = None                     # Current line in the raw file
+        self.curBlock = None                    # Current block
+        self.curLineIndex = 0                   # Current line index in the raw file
+        self.timeOffset = 0                     # Time offset (for multi-CD subtitles)
 
-        self.sid = 0                # Current sentence identifier
-        self.nbTokens = 0            # Total number of words
-        self.nbIgnoredBlocks = 0    # Number of ignored subtitle blocks
-        self.sentence = []          # Tokens in the current sentence
-        self.text = ""              # Collection of all subtitle lines
-        self.rawSentence = ""       # Current raw sentence
+        self.sid = 0                            # Current sentence identifier
+        self.nbTokens = 0                       # Total number of words
+        self.nbIgnoredBlocks = 0                # Number of ignored subtitle blocks
+        self.sentence = Sentence()     # Tokens in the current sentence
+        self.text = ""                          # Collection of all subtitle lines
         
         # Starting the tokeniser and spellchecker
         self.tokeniser = Tokeniser(self.lang)
@@ -130,7 +133,7 @@ class SubtitleConverter:
             self.rawOutput.write(b'<document id="' + id + b'">\n') 
               
    
-    def _readBlock(self):
+    def _readBlock(self, recursive=0):
         """Reads one subtitle block and returns it.
           
         """
@@ -141,6 +144,8 @@ class SubtitleConverter:
         # Reads the very first line
         if not self.curLine:
             self._readline()
+        elif recursive > 20:
+            raise RuntimeError("Wrong encoding format for subtitle")
             
         # Continues until a non-empty line is found
         while self.curLine and not self.curLine.strip():
@@ -157,7 +162,7 @@ class SubtitleConverter:
                 nextBlock = self._readBlock()
                 lasttime = tosecs(block.previous.end) if block.previous else 0
                 # shifting the start and end times after the first CD
-                if lasttime > tosecs(nextBlock.start):
+                if nextBlock and nextBlock.start and lasttime > tosecs(nextBlock.start):
                     nextBlock.start = addsecs(nextBlock.start, lasttime-self.timeOffset)
                     nextBlock.end = addsecs(nextBlock.end, lasttime-self.timeOffset)
                     self.timeOffset = lasttime
@@ -184,7 +189,7 @@ class SubtitleConverter:
                              %(self.curLineIndex, self.curLine))
             self._readline()
             self.nbIgnoredBlocks += 1
-            return self._readBlock()
+            return self._readBlock(recursive+1)
         block.setTiming(timingMatch.group(1), timingMatch.group(2)) 
    
         # Reads the subtitle content until we arrive at the next subtitle ID
@@ -240,14 +245,14 @@ class SubtitleConverter:
         if not self._isContinuation(block):    
             self._flushSentence()
          
-        self.sentence.append(("time", "T%sS"%block.id, block.start))
+        self.sentence.addStamp("T%sS"%block.id, block.start)
         
         # Loops on each line of the subtitle block
         for linenum in range(0,len(block.lines)):
-            self.rawSentence += " " if self.rawSentence else ""
+            self.sentence.addRawChar(' ' if self.sentence.raw else '')
             self._recordLine(block, linenum)       
             
-        self.sentence.append(("time", "T%sE"%block.id, block.end))
+        self.sentence.addStamp("T%sE"%block.id, block.end)
     
         
   
@@ -259,40 +264,59 @@ class SubtitleConverter:
         """
         # Doing the actual tokenisation
         line = block.lines[linenum]
-        tokens = self.tokeniser.tokenise(line)
-         
+        tokens = self.tokeniser.tokenise(line)   
         curPos = 0       # Current character position in the line
+
+        upperline = len([c for c in line if c.isupper() or not c.isalpha()]) > 2*len(line)/3
         for i, token in enumerate(tokens):  
             
+            curPos += len(token)
+
             # Assume a new sentence if an utterance started with "-" is found   
             if (token=="-" and i < len(tokens)-1 and 
                 (tokens[i+1][0].isupper() or (self.lang and self.lang.unicase))):
                 self._flushSentence()
-                
-            corrected = self.spellchecker.spellcheck(token)
-            curPos += len(token)
+
+            # Handle all-uppercase tokens
             emphasised = block.isEmphasised(linenum, curPos)
-            self.sentence.append(("w", corrected, token, emphasised))
-            self.rawSentence += corrected
-            
+            prev = self.sentence.lastToken
+            if token.isupper() and ((not token.istitle() and self.spellchecker.lm) or upperline):
+                corrected = self.spellchecker.recapitalise(token, prev, upperline)
+                if corrected != token:
+                    self.sentence.addToken(token, emphasised|(not upperline), alternative=corrected)
+                else:
+                    self.sentence.addToken(token, emphasised)
+           
+            # Usual case
+            else:
+                 corrected, prob = self.spellchecker.spellcheck(token, prev)
+                 if prev in stopPunctuations2 and corrected.istitle():
+                     self._flushSentence()
+                 emphasised = block.isEmphasised(linenum, curPos)
+                 if corrected == token:
+                     self.sentence.addToken(token, emphasised)
+                 elif prob > 0.8:
+                     self.sentence.addToken(corrected, emphasised, initial=token)
+                 else:
+                     self.sentence.addToken(token, emphasised, alternative=corrected)
+                
             while curPos < len(line) and line[curPos].isspace():
-                self.rawSentence += line[curPos]
+                self.sentence.addRawChar(line[curPos])
                 curPos += 1
                 
             # Do not flush the sentence for the last token in the last line
-            if linenum==len(block.lines)-1 and i==len(tokens)-1:
+            if ((linenum==len(block.lines)-1 and i==len(tokens)-1)
+                or (i < len(tokens)-1 and tokens[i+1]=="\"")):
                 continue
             
-            # Flush the sentence if we have a punctuation mark followed by a 
-            # new line or an uppercase next character (if language not unicase)
-            elif (token[0] in stopPunctuations and 
-                  (i==len(tokens)-1 or tokens[i+1][0].isupper() 
-                    or (self.lang and self.lang.unicase))):
-                    self._flushSentence()
+            if token[0] in stopPunctuations1:
+                self._flushSentence()
+            elif (token[0] in stopPunctuations2 and i > 0 and 
+                (i==len(tokens)-1 or tokens[i+1][0].isupper() or tokens[i+1][0]=="l"
+                 or (self.lang and self.lang.unicase))):
+                self._flushSentence()
                     
-        # We record the text content for language identification purposes
-        self.text += line + "\n"
-   
+ 
     
     def _isContinuation(self, block):
         """Returns true if the block is likely to be a continuation of the current
@@ -308,14 +332,20 @@ class SubtitleConverter:
         score = 0     #Initial continuation score
         
         # Scoring based on the end of the previous block
-        lastline = block.previous.lines[-1].rstrip(")]}- ")
+        lastline = block.previous.lines[-1].rstrip(")]} ")
+        stopEndings = stopPunctuations1 + stopPunctuations2 + ["\""]
         if lastline.endswith("..."):
             score += 2
-        elif lastline and (lastline[-1] in stopPunctuations or lastline[-1]=="\""):
+        elif lastline and lastline[-1] in stopEndings:
             score += -3
+            
         # Scoring based on the beginning of the current block
         newline = block.lines[0].lstrip("'[*# ")
-        if not newline or newline[0] in ["-","\"", "¿", "¡", "'"]:
+        if not newline:
+            score += -2        
+        elif lastline.endswith("-") and newline.startswith("-"):
+            score += 2
+        elif newline[0] in ["-","\"", "¿", "¡", "'"]:
             score += -2
         elif newline.startswith("..."):
             score += 2
@@ -333,8 +363,8 @@ class SubtitleConverter:
             score += (-1 if pause > PAUSE_THR2 else 0)
             
         # Scoring based on sentence lengths
-        score += (-1 if len([x for x in self.sentence if x[0]=="time"]) >3 else 0)
-        score += (-1 if len(self.sentence) > WORDS_THR else 0)  
+        score += (-1 if self.sentence.getNbStamps() >3 else 0)
+        score += (-1 if self.sentence.getNbTokens() > WORDS_THR else 0)  
         return True if score > 0 else False
         
 
@@ -344,18 +374,34 @@ class SubtitleConverter:
         that option is activated) and clears the current sentence.
         
         """ 
-        nbTokens = len([t for t in self.sentence if t[0]=="w"])
+        nbTokens = self.sentence.getNbTokens()
         if not nbTokens:
             return
         self.nbTokens += nbTokens 
         self.sid += 1
-                        
+        self._pruneTokens()           
         self._writeTokens()
         if self.rawOutput:
             self._writeRaw()
-        self.sentence = [] 
-        self.rawSentence = ""   
+        
+        # We record the text content for language identification purposes
+        self.text += self.sentence.rawCorrected + "\n"
+        
+        self.sentence = Sentence() 
+        
   
+  
+    def _pruneTokens(self):
+        entities= self.sentence.entities
+        for i in range(1, len(entities)-4):
+            if (entities[i][0]=="w"  and (entities[i][1]=="..." or entities[i][1]=="-") 
+                and entities[i+1][0]=="time" and entities[i+2][0]=="time" 
+                and entities[i+3][0]=="w" and entities[i+3][1]==entities[i][1]):
+                self.sentence.entities = entities[0:i] +entities[i+1:i+3] + entities[i+4:]
+                self.sentence.raw = self.sentence.raw.replace("... ...", " ")
+                self.sentence.raw = self.sentence.raw.replace("- -", " ")
+                break
+        
           
     def _writeTokens(self):
         """ Writes the tokens in self.sentence to the XML file. 
@@ -363,27 +409,22 @@ class SubtitleConverter:
         """
         builder = et.TreeBuilder()  
         sattrs = {"id":str(self.sid)}
-        if not [x for x in self.sentence if x[0]=="w" and not x[3]]:
+        if self.sentence.isEmphasised():
             sattrs.update({"emphasis":"true"})
+            for w in self.sentence.getTokens():
+                del w[2]["emphasis"]
         builder.start("s",sattrs)
         tokid = 0
-        for i, entity in enumerate(self.sentence):
+        entities= self.sentence.getEntities()
+        for i, entity in enumerate(entities):
             
             if entity[0]=="w":
                 token = entity[1]
                 tokid += 1
-                
-                # Ignore ... tokens used to indicate continued sentences
-                if (token=="..." and i > 1 and i < len(self.sentence)-2 and  
-                    (self.sentence[i+1][0]=="time" or self.sentence[i-1][0]=="time")):
-                    continue
               
                 builder.data("\n    ")
                 wattrs = {"id":"%i.%i"%(self.sid,tokid)}
-                if entity[2] != token:
-                    wattrs.update({"initial":entity[2]})
-                if entity[3] and not "emphasis" in sattrs:
-                    wattrs.update({"emphasis":"true"})
+                wattrs.update(entity[2])
                 builder.start("w",wattrs)
                 builder.data(token)
                 builder.end("w") 
@@ -391,7 +432,7 @@ class SubtitleConverter:
             # Write a <time> entity
             elif entity[0]=="time":
                 builder.data("\n    ")
-                builder.start("time",{"id":entity[1], "value":entity[2]})
+                builder.start("time",entity[1])
                 builder.end("time")    
           
         builder.data("\n  ")
@@ -404,7 +445,7 @@ class SubtitleConverter:
         
                
     def _writeRaw(self):
-        """ Writes the raw sentence in self.rawSentence to the XML file. 
+        """ Writes the raw sentence to the XML file. 
                 
         """
         builder = et.TreeBuilder()  
@@ -412,18 +453,19 @@ class SubtitleConverter:
         builder.start("s",attrs)
 
         # Add timing info at the beginning of the sentence
-        if self.sentence and self.sentence[0][0] == "time":
+        entities = self.sentence.getEntities()
+        if entities and entities[0][0] == "time":
             builder.data("\n    ")
-            builder.start("time",{"id":self.sentence[0][1], "value":self.sentence[0][2]})
+            builder.start("time",entities[0][1])
             builder.end("time")  
             
         builder.data("\n")
-        builder.data(self.rawSentence)
+        builder.data(self.sentence.raw)
           
         # Add timing info at the end of the sentence
-        if self.sentence and self.sentence[-1][0] == "time":
+        if entities and entities[-1][0] == "time":
             builder.data("\n    ")
-            builder.start("time",{"id":self.sentence[-1][1], "value":self.sentence[-1][2]})
+            builder.start("time",entities[-1][1])
             builder.end("time")   
           
         builder.data("\n  ")
@@ -448,7 +490,12 @@ class SubtitleConverter:
         if self.lang:
              meta["subtitle"]["language"] = self.lang.name
              # Performs language identification
-             meta["subtitle"]["confidence"] = str(self.lang.getProb(self.text))
+             langProb = self.lang.getProb(self.text)
+             if langProb < 0.1 and not isinstance(self, BilingualConverter):
+                 msg = "Subtitle is not encoded in " + self.lang.name
+                 msg += " (distrib: " + str(utils.getProbDist(self.text)) + ")"
+                 raise RuntimeError(msg)
+             meta["subtitle"]["confidence"] = str(langProb)
         
         if self.curBlock:
             meta["subtitle"]["blocks"] = str(self.curBlock.id)
@@ -458,10 +505,10 @@ class SubtitleConverter:
         meta["conversion"]["tokens"] = str(self.nbTokens)
         meta["conversion"]["encoding"] = self.encodings[0]
         meta["conversion"]["ignored_blocks"] = str(self.nbIgnoredBlocks)
-        if self.spellchecker.dictionary:
-            sc = self.spellchecker
-            meta["conversion"]["unknown_words"] = str(sc.nbUnknowns)
-            meta["conversion"]["corrected_words"] = str(sc.nbCorrections)
+        sc = self.spellchecker
+        meta["conversion"]["unknown_words"] = str(sc.nbUnknowns)
+        meta["conversion"]["corrected_words"] = str(sc.nbCorrections)
+        meta["conversion"]["truecased_words"] = str(sc.nbTruecased)
         return meta
     
     
@@ -503,6 +550,61 @@ class SubtitleConverter:
             self.rawOutput.close()
                 
 
+class Sentence:
+    """Representation of a tokenised sentence (with time stamps).
+    
+    """
+    
+    def __init__(self):
+        self.entities = []
+        self.lastToken = None
+        self.raw = ""  
+        self.rawCorrected = ""  
+        
+    def addToken(self, token, emphasised, initial=None, alternative=None):
+        emphasis = "true" if emphasised else None
+        attrs = {"emphasis":emphasis,"initial":initial,"alternative":alternative}
+        attrs = {k:attrs[k] for k in attrs if attrs[k]}
+        self.entities.append(("w", token, attrs))
+        corrected = alternative if alternative else token
+        self.lastToken = corrected
+        self.raw += token
+        self.rawCorrected += corrected
+    
+    def addRawChar(self, c):
+        self.raw += c
+        self.rawCorrected += c
+        
+    def addStamp(self, stamp, timing):
+        self.entities.append(("time", {"id":stamp,"value":timing}))
+        
+    def getStamps(self):
+        return [x for x in self.entities if x[0]=="time"]
+
+    def getTokens(self):
+        return [x for x in self.entities if x[0]=="w"]
+    
+    def getNbStamps(self):
+        return len(self.getStamps())
+    
+    def getNbTokens(self):
+        return len(self.getTokens())
+    
+    def isEmphasised(self):
+        foundToken = False
+        for x in self.entities:
+            if x[0]=="w" and "emphasis" not in x[2]:
+                return False
+            foundToken=True
+        return foundToken
+
+    def __nonzero__(self):
+        return bool(self.entities)
+    
+    def getEntities(self):
+        return self.entities
+        
+        
 class BilingualConverter(SubtitleConverter):
     """Special converter for handling bilingual subtitles (with the first line
     of each block in one language, and the second line in another).
@@ -570,9 +672,10 @@ class BilingualConverter(SubtitleConverter):
         """
         # Loops on each line of the subtitle block
         for linenum in range(0,len(block.lines)):
-            self.sentence = [("time", "T%sS"%block.id, block.start)]
+            self.sentence = Sentence()
+            self.sentence.addStamp("T%sS"%block.id, block.start)
             self._recordLine(block, linenum)  
-            self.sentence.append(("time", "T%sE"%block.id, block.end))
+            self.sentence.addStamp("T%sE"%block.id, block.start)
             self._flushSentence()
             if not linenum:
                 self._switchLanguage()
@@ -632,11 +735,18 @@ class SubtitleBlock:
         
         """
         line = line.strip()
+        splits = re.split(r"\\[nN]", line)
+        if len(splits) > 1:
+            for s in splits:
+                self.addLine(s)
+            return
         if not line:
             return
         line = quotationRegex.sub("\"", line)  
         line = quotationRegex2.sub("'", line)  
-        line = re.sub("\{[yY]:[ib]\}(.*)","<i>\g<1></i>", line)
+        line = tagRegex2.sub("<i>\g<1></i>", line)
+        line = tagRegex3.sub("<i>\g<1></i>", line)
+        line = re.sub(r"{[\w\\]+}", "", line)
         line = line.replace("…", "...").replace("‥", "...")
         line = toReduceRegex.sub("\g<1>", line)
        
@@ -771,25 +881,30 @@ def detectEncoding(input, alternatives):
         detector.feed(line)
         if detector.done: break
     detector.close()
-    result = detector.result
-    
-    encoding = detector.result["encoding"].lower().rstrip("-sig")
-    # Correcting some detection errors in chardet
-    encoding = "windows-1250" if encoding=="iso-8859-2" else encoding
-    encoding = "windows-1252" if encoding=="asc" else encoding
-    
     input.seek(0)
+    
+    if "encoding" in detector.result and detector.result["encoding"]:
+        encoding = detector.result["encoding"].lower().rstrip("-sig")
+        # Correcting some detection errors in chardet
+        encoding = "windows-1250" if encoding=="iso-8859-2" else encoding
+        encoding = "windows-1252" if encoding=="asc" else encoding
+        encoding = "shiftjis" if encoding=="shift_j" else encoding
+        confidence = detector.result['confidence']
+    else:
+        encoding = "unknown"
+        confidence = 0.0
+    
     sys.stderr.write("Detected encoding: %s with confidence %f\n"
                      %(encoding, detector.result['confidence']))
-    if not alternatives or encoding in alternatives:
+    if confidence > 0.3 and (not alternatives or encoding in alternatives):
         return encoding
     else:
-        raise RuntimeError("Encoding %s not allowed (alternatives: %s)"
+        raise RuntimeError("Unsupported encoding %s (not in %s)"
                            %(encoding,str(alternatives)))
       
 
 def tosecs(timeStr):
-    """ Convers the time string as a number of seconds.
+    """ Convert the time string as a number of seconds.
     
     """
     if not timeStr:

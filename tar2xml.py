@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*- 
 
 import gzip,tarfile,re,os,sys,io,tarfile,time,collections,uuid,subprocess
 from io import BytesIO
@@ -364,9 +365,8 @@ def convertArchive(archiveFile, tokTarFile, langcode=None, encoding=None,
     if langcode == "zhe":
         return convertBilingualArchive(archiveFile,tokTarFile,langcode,encoding,
                                        alwaysSplit,rawTarFile,nbPartitions,part)
-               
-    langcode = utils.getLanguage(langcode).codes[1]
-
+    
+    langcode=utils.getLanguage(langcode).codes[0] if langcode !="pob" else "pb"
     subset = selectSubtitles(archiveFile, langcode, nbPartitions, part)
     
     language = utils.getLanguage(langcode)  
